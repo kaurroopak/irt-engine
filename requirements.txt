@@ -1,0 +1,10 @@
+numpy>=1.24
+pytest>=7.4
+
+# Added in later modules (clustering.py, theta.py, repository.py) — listed
+# here now so the file doesn't need repeated edits per module:
+# scikit-learn>=1.3      # clustering.py: KMeans(k=2)
+# scipy>=1.11            # theta.py: MLE/EAP ability estimation
+# pandas>=2.0            # repository.py (CSV mode): sample_data/*.csv loading
+# python-dotenv>=1.0     # config.py: .env resolution for Postgres mode
+# psycopg2-binary>=2.9   # repository.py (Postgres mode)
