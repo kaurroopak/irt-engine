@@ -122,6 +122,39 @@ THETA_EXPONENT_CLAMP = 35.0
 # these quality labels mark a question for review.
 FLAGGED_DISCRIMINATOR_QUALITIES = frozenset({"poor", "negative"})
 
+# ── CHANGE 5: mastery initialization ─────────────────────────────────────
+# mastery_initializer.py's inputs are explicitly theta + concept accuracy +
+# Bloom-derived difficulty (per-question segregation-based discrimination
+# is NOT part of that module's declared input set). To still reuse
+# theta.py's exact 2PL probability_correct() formula (no duplicated math)
+# when folding difficulty into the theta-implied accuracy term, a fixed
+# reference discrimination is used in place of a per-item segregation
+# score. This is a deliberate engineering simplification, documented here
+# and in mastery_initializer.py: it treats every concept's items as
+# "moderately discriminating" for the purpose of the theta -> accuracy
+# projection, which is a reasonable default when the mastery-initializer's
+# job is a first-pass estimate that BKT will immediately start correcting
+# with live data anyway.
+MASTERY_REFERENCE_DISCRIMINATION = 1.0
+
+# Blend weight between OBSERVED concept accuracy (correct/attempted) and
+# THETA-IMPLIED accuracy (mean 2PL P(correct) at the student's theta over
+# that concept's items), as a function of how many items were attempted
+# for that concept. This is the effective sample size of a Beta-Bernoulli
+# shrinkage prior centered at the theta-implied accuracy: with N attempts,
+# observed accuracy gets weight N/(N+K) and the theta-implied prior gets
+# K/(N+K). A concept probed by only 1-2 diagnostic items should not be
+# initialized purely from that noisy handful of observations; a concept
+# probed by 10+ items should be dominated by what was actually observed.
+MASTERY_PRIOR_STRENGTH = 3.0
+
+# Initial mastery is clamped into (SEED_PRIOR_MIN, SEED_PRIOR_MAX) — reusing
+# the bounds already defined above for exactly this purpose — rather than
+# allowing exact 0.0/1.0, since Bayesian Knowledge Tracing's update
+# equations (already implemented in the quiz portal) can behave poorly
+# starting from a hard 0 or 1 prior (a single slip/guess can never be
+# recovered from mathematically once mastery is exactly 0 or 1).
+
 # ── Guess-detection parameters (unchanged from the prior IRT module; mirror
 # the constants in the TypeScript submit path — see docs/ for the sync note) ─
 RT_GUESS_THRESHOLD_MS = 1500
