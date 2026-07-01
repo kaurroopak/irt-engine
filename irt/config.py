@@ -67,7 +67,60 @@ FEATURE_VECTOR_FIELDS: tuple[str, ...] = (
 # ── CHANGE 2/3: clustering + segregation ────────────────────────────────────
 N_CLUSTERS = 2
 RANDOM_STATE = 42  # KMeans seed, for reproducible strong/weak assignment
-SEGREGATION_POOR_DISCRIMINATOR_THRESHOLD = 0.15  # |strong_acc - weak_acc| below this => flagged
+
+# CHANGE 3: discrimination-quality thresholds for the segregation score
+# (strong_accuracy - weak_accuracy). The task brief suggested
+# 0.50/0.30/0.10/0.00 boundaries; these are adjusted to match Ebel's (1979)
+# classic item-discrimination classification, the most widely cited
+# standard in classroom-test psychometrics (Ebel & Frisbie, "Essentials of
+# Educational Measurement"). Ebel's D-index uses the SAME formula this
+# module computes (upper-group accuracy - lower-group accuracy), just on a
+# fixed 27%/27% split rather than a KMeans-derived one, which is exactly
+# what makes it the right literature anchor here:
+#   D >= 0.40            -> excellent
+#   0.30 <= D < 0.40      -> good
+#   0.20 <= D < 0.30      -> moderate ("marginal" in Ebel's terms; usable but flagged for review)
+#   0.00 <= D < 0.20      -> poor (should be revised)
+#   D < 0.00              -> negative (discriminates backwards; should be pulled/rewritten)
+# Ordered highest-threshold-first; classify_discrimination() picks the first
+# (label, min_inclusive) where score >= min_inclusive.
+DISCRIMINATION_QUALITY_THRESHOLDS: list[tuple[str, float]] = [
+    ("excellent", 0.40),
+    ("good", 0.30),
+    ("moderate", 0.20),
+    ("poor", 0.00),
+    ("negative", float("-inf")),
+]
+# ── CHANGE 4: theta (ability) estimation ────────────────────────────────────
+# Newton-Raphson MLE on the 2PL log-likelihood, with a and b already known
+# (from bloom_mapper.py and segregation.py respectively) — see theta.py for
+# why Newton-Raphson is the right choice here.
+THETA_INITIAL = 0.0            # starting guess; 0.0 = "average ability", a neutral prior
+THETA_MIN = -4.0                # clamp bounds. +-4 logits covers ~99.97% of a logistic
+THETA_MAX = 4.0                 # ability distribution — matching common IRT software defaults
+THETA_MAX_STEP = 1.0            # per-iteration Newton step cap, prevents a single noisy
+                                  # iteration from launching theta out of a sane range
+THETA_MAX_ITERATIONS = 50
+THETA_CONVERGENCE_TOLERANCE = 1e-5  # |score (dL/dtheta)| below this => converged
+# Response patterns that are all-correct or all-incorrect have NO finite
+# maximum-likelihood theta (the log-likelihood is strictly increasing or
+# decreasing forever) — this is a known, expected property of MLE for
+# extreme response patterns, not a numerical bug. Those cases are detected
+# up front and theta is reported at this clamp boundary with converged=False,
+# rather than burning iterations approaching it asymptotically.
+THETA_EXTREME_PATTERN_CLAMP = 4.0
+
+# Bound on the logistic exponent |a * (theta - b)| before calling exp(), to
+# avoid float overflow (exp of a large number) or underflow (exp of a very
+# negative number silently becoming exactly 0.0, which would later divide
+# cleanly but incorrectly). 35 is comfortably inside float64's range
+# (exp(35) ~ 1.6e15) while already representing a probability of
+# effectively 0 or 1 to more precision than any real answer key needs.
+THETA_EXPONENT_CLAMP = 35.0
+
+# Per Change 3 ("questions with poor segregation should be flagged"),
+# these quality labels mark a question for review.
+FLAGGED_DISCRIMINATOR_QUALITIES = frozenset({"poor", "negative"})
 
 # ── Guess-detection parameters (unchanged from the prior IRT module; mirror
 # the constants in the TypeScript submit path — see docs/ for the sync note) ─
